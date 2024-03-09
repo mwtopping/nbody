@@ -1,32 +1,65 @@
 use std::thread;
+use rand_distr::{Normal, Distribution};
+use rand::thread_rng;
+use terminal_size::{terminal_size, Width, Height};
+use std::env;
+
+
 
 fn main() {
 
-    const n_obj: usize = 3;
-    const Nsteps: usize = 10000;
+    let args: Vec<String> = env::args().collect();
+    let n_obj: usize = args[1].trim().parse().expect("You need to provide a number");
+
     const dt: f64 = 0.1;
+    let normal = Normal::new(0.0, 0.5).unwrap();
+    let vnormal = Normal::new(0.0, 0.1).unwrap();
 
-    let mut positions: [[f64; 2]; n_obj] = [[-1., 0.], [1., 0.], [0., -0.5]];
-    let mut velocities: [[f64; 2]; n_obj] = [[0.0, -0.3], [0.0, 0.3], [0.0, 0.0]];
-    let mut accelerations: [[f64; 2]; n_obj] = [[0., 0.], [0., 0.], [0., 0.]];
+    // create vectors
+    let mut positions = Vec::new();
+    let mut velocities = Vec::new();
+    let mut accelerations = Vec::new();
 
 
+    // Loop through all of the objects and set random positions and velocities, 
+    // and initialize acceleration array
+    for ii in 0..n_obj {
+        positions.push([normal.sample(&mut rand::thread_rng()), 
+                        normal.sample(&mut rand::thread_rng())]);
+
+        velocities.push([vnormal.sample(&mut rand::thread_rng()), 
+                         vnormal.sample(&mut rand::thread_rng())]);
+
+        accelerations.push([0.0, 0.0]);
+    }
+
+    // main loop
     loop {
-        accelerations = [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]];
+
+        // find terminal size and change display grid appropriately
+        let (Width(w), Height(h)) = terminal_size::terminal_size().unwrap();
+        let mut size: i32 = 0;
+        if w > 2*h {
+            size = (h-1).into();
+        } else {
+            size = (w/2-1).into();
+        }
+
+        // need to first zero out the accelerations
+        for ii in 0..n_obj {
+            accelerations[ii] = [0.0, 0.0]; 
+        }
+        
+        // do the calculations here
         calc_accel(&mut positions, &mut accelerations, n_obj);
         update_velocity(&mut velocities, &mut accelerations, n_obj, dt);
         update_position(&mut positions, &mut velocities, n_obj, dt);
 
-        print_coords(&mut positions, n_obj);
-
-
+        // draw the points to the terminal
         print!("\x1B[2J\x1B[1;1H");
-        show_grid(&mut positions, n_obj);
-        thread::sleep_ms(10);
+        show_grid(&mut positions, n_obj, size);
+        thread::sleep_ms(50);
     }
-
-    let tmp = map(0.5, -1.0, 1.0, -10.0, 10.0);    
-    println!("{}", tmp);
 }
 
 fn calc_accel(positions: &mut [[f64; 2]], accelerations: &mut [[f64; 2]], n_obj: usize) {
@@ -84,8 +117,7 @@ fn map(x: f64, xmin: f64, xmax: f64, toxmin: f64, toxmax: f64) -> i32 {
 }
 
 
-fn show_grid(positions: &mut [[f64; 2]], n_obj: usize) {
-    let size = 45;
+fn show_grid(positions: &mut [[f64; 2]], n_obj: usize, size: i32) {
     let gridsize = ((2*size+1)*size) as usize;
     let mut grid = String::from("");
     for ii in 0..size {
@@ -99,12 +131,11 @@ fn show_grid(positions: &mut [[f64; 2]], n_obj: usize) {
         let xind = map(positions[kk][0], -2.0, 2.0, 0.0,2.0*(size as f64));
         let yind = map(positions[kk][1], -2.0, 2.0, 0.0,1.0*(size as f64));
         let objind = (yind*(2*size+1)+xind) as usize;
-        if (objind > 0) & (objind < gridsize) & (positions[kk][0] > -2.0)
+        if (objind > 0) & (objind < gridsize) & (positions[kk][0] > -2.0) & (positions[kk][0] < 2.0)
         {
-            grid.replace_range(objind..objind+1, "o");
+            grid.replace_range(objind..objind+1, ".");
         }
     }
 
     println!("{}", grid);
 }
-
